@@ -1,19 +1,26 @@
-self:
-{ config, lib, pkgs, ... }:
-
-let
+self: {
+  config,
+  lib,
+  pkgs,
+  ...
+}: let
   cfg = config.programs.cliphizt;
 
-  toConfigFile = s: pkgs.writeText "cliphizt-config" ''
-    max-items ${toString s.max-items}
-    max-dedupe-search ${toString s.max-dedupe-search}
-    min-store-length ${toString s.min-store-length}
-    preview-width ${toString s.preview-width}
-    max-store-size ${s.max-store-size}
-    ephemeral-ttl ${s.ephemeral-ttl}
-    persist-mode ${if s.persist-mode then "true" else "false"}
-    ${lib.optionalString (s.db-path != "") "db-path ${s.db-path}"}
-  '';
+  toConfigFile = s:
+    pkgs.writeText "cliphizt-config" ''
+      max-items ${toString s.max-items}
+      max-dedupe-search ${toString s.max-dedupe-search}
+      min-store-length ${toString s.min-store-length}
+      preview-width ${toString s.preview-width}
+      max-store-size ${s.max-store-size}
+      ephemeral-ttl ${s.ephemeral-ttl}
+      persist-mode ${
+        if s.persist-mode
+        then "true"
+        else "false"
+      }
+      ${lib.optionalString (s.db-path != "") "db-path ${s.db-path}"}
+    '';
 in {
   options.programs.cliphizt = {
     enable = lib.mkEnableOption "cliphizt clipboard history manager";
@@ -90,34 +97,34 @@ in {
       extraStoreArgs = lib.mkOption {
         type = lib.types.listOf lib.types.str;
         default = [];
-        example = [ "--ttl" "1h" ];
+        example = ["--ttl" "1h"];
         description = "Extra arguments appended to every cliphizt store invocation.";
       };
     };
   };
 
   config = lib.mkIf cfg.enable {
-    home.packages = [ cfg.package ];
+    home.packages = [cfg.package];
 
     xdg.configFile."cliphizt/config".source = toConfigFile cfg.settings;
 
     systemd.user.services.cliphizt-watch = lib.mkIf cfg.systemdService.enable {
       Unit = {
         Description = "Wayland clipboard history manager (cliphizt)";
-        PartOf = [ "graphical-session.target" ];
-        After = [ "graphical-session.target" ];
+        PartOf = ["graphical-session.target"];
+        After = ["graphical-session.target"];
       };
       Service = {
         Type = "simple";
         ExecStart = lib.escapeShellArgs (
-          [ "${pkgs.wl-clipboard}/bin/wl-paste" "--watch" "${lib.getExe cfg.package}" "store" ]
+          ["${pkgs.wl-clipboard}/bin/wl-paste" "--watch" "${lib.getExe cfg.package}" "store"]
           ++ cfg.systemdService.extraStoreArgs
         );
         Restart = "on-failure";
         KillSignal = "SIGINT";
       };
       Install = {
-        WantedBy = [ "graphical-session.target" ];
+        WantedBy = ["graphical-session.target"];
       };
     };
   };
