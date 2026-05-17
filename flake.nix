@@ -11,6 +11,7 @@
     systems = [
       "x86_64-linux"
       "aarch64-linux"
+      "aarch64-darwin"
     ];
     forAllSystems = f: lib.genAttrs systems (system: f nixpkgs.legacyPackages.${system});
   in {
