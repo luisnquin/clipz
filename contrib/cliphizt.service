@@ -1,0 +1,12 @@
+[Unit]
+Description=Wayland clipboard manager (cliphizt)
+PartOf=graphical-session.target
+After=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/wl-paste --watch cliphizt store
+Restart=on-failure
+
+[Install]
+WantedBy=graphical-session.target
