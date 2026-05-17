@@ -86,9 +86,14 @@ fn usage() void {
         \\  compact                        defragment the database
         \\  cleanup                        delete expired (TTL) entries
         \\  mode get                       print current mode
-        \\  mode set <normal|ephemeral>    switch mode
-        \\  mode toggle                    switch to the other mode, print result
+        \\  mode set <mode>                switch mode
+        \\  mode toggle                    cycle modes, print result
         \\  version                        print version and config
+        \\
+        \\modes:
+        \\  normal       keep entries forever (default)
+        \\  ephemeral    entries expire after ephemeral-ttl
+        \\  single-use   entries are deleted after the first decode
         \\
         \\ttl format: 30s, 5m, 2h, 7d, 1w, 1h30m
         \\

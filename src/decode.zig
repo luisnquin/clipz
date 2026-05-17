@@ -32,6 +32,10 @@ pub fn run(allocator: std.mem.Allocator, cfg: *const Config, args: []const []con
         },
         else => return e,
     };
+
+    const mode = try @import("mode.zig").get(allocator, cfg);
+    defer allocator.free(mode);
+    if (std.mem.eql(u8, mode, "single-use")) try db.deleteById(allocator, id);
 }
 
 fn extractId(line: []const u8) ?i64 {

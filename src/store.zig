@@ -100,7 +100,7 @@ fn readModeFile(allocator: std.mem.Allocator, path: []const u8) ![]u8 {
     defer allocator.free(raw);
 
     const trimmed = std.mem.trim(u8, raw, " \t\n\r");
-    if (!std.mem.eql(u8, trimmed, "normal") and !std.mem.eql(u8, trimmed, "ephemeral")) {
+    if (!std.mem.eql(u8, trimmed, "normal") and !std.mem.eql(u8, trimmed, "ephemeral") and !std.mem.eql(u8, trimmed, "single-use")) {
         return error.InvalidMode;
     }
     return allocator.dupe(u8, trimmed);

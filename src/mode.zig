@@ -15,7 +15,12 @@ pub fn run(allocator: std.mem.Allocator, cfg: *const Config, args: []const []con
     if (std.mem.eql(u8, args[0], "toggle")) {
         const current = try get(allocator, cfg);
         defer allocator.free(current);
-        const next = if (std.mem.eql(u8, current, "ephemeral")) "normal" else "ephemeral";
+        const next: []const u8 = if (std.mem.eql(u8, current, "normal"))
+            "ephemeral"
+        else if (std.mem.eql(u8, current, "ephemeral"))
+            "single-use"
+        else
+            "normal";
         try set(allocator, cfg, next);
         try std.Io.File.writeStreamingAll(.stdout(), global_io, next);
         try std.Io.File.writeStreamingAll(.stdout(), global_io, "\n");
@@ -24,12 +29,12 @@ pub fn run(allocator: std.mem.Allocator, cfg: *const Config, args: []const []con
 
     if (std.mem.eql(u8, args[0], "set")) {
         if (args.len < 2) {
-            std.debug.print("error: mode set requires <normal|ephemeral>\n", .{});
+            std.debug.print("error: mode set requires <normal|ephemeral|single-use>\n", .{});
             std.process.exit(1);
         }
         const mode_str = args[1];
-        if (!std.mem.eql(u8, mode_str, "normal") and !std.mem.eql(u8, mode_str, "ephemeral")) {
-            std.debug.print("error: unknown mode '{s}', use normal or ephemeral\n", .{mode_str});
+        if (!std.mem.eql(u8, mode_str, "normal") and !std.mem.eql(u8, mode_str, "ephemeral") and !std.mem.eql(u8, mode_str, "single-use")) {
+            std.debug.print("error: unknown mode '{s}', use normal, ephemeral or single-use\n", .{mode_str});
             std.process.exit(1);
         }
         try set(allocator, cfg, mode_str);
@@ -77,7 +82,7 @@ fn readModeFile(allocator: std.mem.Allocator, path: []const u8) ![]u8 {
     defer allocator.free(raw);
 
     const trimmed = std.mem.trim(u8, raw, " \t\n\r");
-    if (!std.mem.eql(u8, trimmed, "normal") and !std.mem.eql(u8, trimmed, "ephemeral")) {
+    if (!std.mem.eql(u8, trimmed, "normal") and !std.mem.eql(u8, trimmed, "ephemeral") and !std.mem.eql(u8, trimmed, "single-use")) {
         return error.InvalidMode;
     }
     return allocator.dupe(u8, trimmed);
