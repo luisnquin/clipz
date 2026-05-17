@@ -87,6 +87,7 @@ fn usage() void {
         \\  cleanup                        delete expired (TTL) entries
         \\  mode get                       print current mode
         \\  mode set <normal|ephemeral>    switch mode
+        \\  mode toggle                    switch to the other mode, print result
         \\  version                        print version and config
         \\
         \\ttl format: 30s, 5m, 2h, 7d, 1w, 1h30m

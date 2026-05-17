@@ -12,6 +12,16 @@ pub fn run(allocator: std.mem.Allocator, cfg: *const Config, args: []const []con
         return;
     }
 
+    if (std.mem.eql(u8, args[0], "toggle")) {
+        const current = try get(allocator, cfg);
+        defer allocator.free(current);
+        const next = if (std.mem.eql(u8, current, "ephemeral")) "normal" else "ephemeral";
+        try set(allocator, cfg, next);
+        try std.Io.File.writeStreamingAll(.stdout(), global_io, next);
+        try std.Io.File.writeStreamingAll(.stdout(), global_io, "\n");
+        return;
+    }
+
     if (std.mem.eql(u8, args[0], "set")) {
         if (args.len < 2) {
             std.debug.print("error: mode set requires <normal|ephemeral>\n", .{});
