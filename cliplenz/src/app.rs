@@ -370,11 +370,24 @@ fn load_preview(cmd: &str, line: &str) -> Preview {
             Err(e) => return Preview::Error(format!("decode image: {e}")),
         }
     }
-    Preview::Text(String::from_utf8_lossy(&bytes).into_owned())
+    Preview::Text(sanitize(&String::from_utf8_lossy(&bytes)))
+}
+
+/// Drop characters that crash the text shaper. cosmic-text aborts when a single
+/// shaped line holds bidi paragraphs of differing direction, which binary data
+/// (e.g. a FreeCAD .FCStd zip via from_utf8_lossy) triggers via control bytes
+/// that Unicode treats as paragraph separators (Bidi class B). Newline and tab
+/// are kept — `\n` is split into its own line upstream, so it's harmless.
+fn sanitize(s: &str) -> String {
+    s.chars()
+        .filter(|&c| {
+            c == '\n' || c == '\t' || (!c.is_control() && c != '\u{2028}' && c != '\u{2029}')
+        })
+        .collect()
 }
 
 fn first_line(s: &str) -> String {
-    let line = s.lines().next().unwrap_or("");
+    let line = sanitize(s.lines().next().unwrap_or(""));
     let trimmed: String = line.chars().take(200).collect();
     if line.chars().count() > 200 {
         format!("{trimmed}…")
