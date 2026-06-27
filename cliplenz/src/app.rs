@@ -2,13 +2,15 @@
 //! Knows nothing about any clipboard backend — it reads lines, lets you pick
 //! one, and prints it. Rich preview is delegated to a user `--preview` command.
 
+use std::cell::Cell;
 use std::collections::HashMap;
 
 use iced::widget::image::Handle;
+use iced::widget::scrollable::AbsoluteOffset;
 use iced::widget::{
-    column, container, mouse_area, row, scrollable, text, text_input, Space,
+    column, container, mouse_area, responsive, row, scrollable, text, text_input, Space,
 };
-use iced::{event, keyboard, ContentFit, Element, Event, Length, Subscription, Task};
+use iced::{event, keyboard, ContentFit, Element, Event, Length, Size, Subscription, Task};
 use iced_layershell::to_layer_message;
 
 use crate::cli::Args;
@@ -20,8 +22,18 @@ use crate::{external, fuzzy::Fuzzy};
 /// snappy on the software renderer. Matches still rank over the whole input.
 const MAX_VISIBLE: usize = 200;
 
+/// Vertical extent of one list row, in pixels: text size 13 × default line
+/// height 1.3 (≈16.9) + container padding 4+4 + column spacing 2. iced reports
+/// viewport geometry only after a manual wheel/drag scroll, never on keyboard
+/// nav, so edge detection derives row height from styling instead of measuring.
+const ROW_STRIDE: f32 = 26.9;
+
 pub fn search_id() -> iced::widget::Id {
     iced::widget::Id::new("cliplenz-search")
+}
+
+fn list_id() -> iced::widget::Id {
+    iced::widget::Id::new("cliplenz-list")
 }
 
 pub fn namespace() -> String {
@@ -41,6 +53,11 @@ pub struct State {
     placeholder: String,
     /// Keyed by entry index; only populated when a preview command is set.
     preview_cache: HashMap<usize, Preview>,
+    /// Our belief of the list's current absolute scroll offset (y, px). Kept in
+    /// sync via `Message::Scrolled` so wheel scrolls don't desync edge math.
+    scroll_y: f32,
+    /// List viewport height (px), captured during `view` via `responsive`.
+    viewport_h: Cell<f32>,
 }
 
 #[derive(Clone)]
@@ -55,6 +72,7 @@ enum Preview {
 pub enum Message {
     Query(String),
     Move(i32),
+    Scrolled(f32),
     Select(usize),
     Accept,
     Quit,
@@ -72,6 +90,8 @@ impl State {
             prompt: args.prompt,
             placeholder: args.placeholder,
             preview_cache: HashMap::new(),
+            scroll_y: 0.0,
+            viewport_h: Cell::new(0.0),
         };
         state.ensure_preview();
         (state, iced::widget::operation::focus(search_id()))
@@ -102,11 +122,41 @@ impl State {
         self.ensure_preview();
     }
 
+    /// Scroll the list only when the focused row would fall outside the current
+    /// page: nudge up to the row's top when above the viewport, or down so its
+    /// bottom is flush when below. The row otherwise stays put, like a pager.
+    fn keep_selected_visible(&mut self) -> Task<Message> {
+        let viewport_h = self.viewport_h.get();
+        let visible = self.filtered.len().min(MAX_VISIBLE);
+        if viewport_h <= 0.0 || visible == 0 {
+            return Task::none();
+        }
+
+        let sel_top = self.selected as f32 * ROW_STRIDE;
+        let sel_bottom = sel_top + ROW_STRIDE;
+        let mut y = self.scroll_y;
+        if sel_top < y {
+            y = sel_top;
+        } else if sel_bottom > y + viewport_h {
+            y = sel_bottom - viewport_h;
+        }
+
+        let max_y = (visible as f32 * ROW_STRIDE - viewport_h).max(0.0);
+        y = y.clamp(0.0, max_y);
+        if (y - self.scroll_y).abs() < 0.5 {
+            return Task::none();
+        }
+
+        self.scroll_y = y;
+        iced::widget::operation::scroll_to(list_id(), AbsoluteOffset { x: 0.0, y })
+    }
+
     pub fn update(&mut self, message: Message) -> Task<Message> {
         match message {
             Message::Query(q) => {
                 self.query = q;
                 self.recompute();
+                return self.keep_selected_visible();
             }
             Message::Move(delta) => {
                 let visible = self.filtered.len().min(MAX_VISIBLE);
@@ -114,7 +164,11 @@ impl State {
                     let cur = self.selected as i32;
                     self.selected = (cur + delta).rem_euclid(visible as i32) as usize;
                     self.ensure_preview();
+                    return self.keep_selected_visible();
                 }
+            }
+            Message::Scrolled(y) => {
+                self.scroll_y = y;
             }
             Message::Select(pos) if pos < self.filtered.len() => {
                 self.selected = pos;
@@ -192,6 +246,16 @@ impl State {
                 .into();
         }
 
+        // `responsive` hands us the list's allotted size during layout; stash
+        // its height so `keep_selected_visible` knows the page extent.
+        responsive(move |size: Size| {
+            self.viewport_h.set(size.height);
+            self.list_scrollable()
+        })
+        .into()
+    }
+
+    fn list_scrollable(&self) -> Element<'_, Message> {
         let mut rows = column![].spacing(2);
         for (pos, &idx) in self.filtered.iter().take(MAX_VISIBLE).enumerate() {
             rows = rows.push(self.view_row(pos, &self.entries[idx]));
@@ -206,6 +270,8 @@ impl State {
         }
 
         scrollable(rows)
+            .id(list_id())
+            .on_scroll(|vp| Message::Scrolled(vp.absolute_offset().y))
             .style(theme::scroll)
             .height(Length::Fill)
             .into()
