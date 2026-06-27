@@ -13,18 +13,24 @@
       "aarch64-linux"
       "aarch64-darwin"
     ];
-    forAllSystems = f: lib.genAttrs allSystems (system: f nixpkgs.legacyPackages.${system});
+    forAllSystems = f: lib.genAttrs allSystems (system: f (nixpkgs.legacyPackages.${system}.extend self.overlays.default));
   in {
-    packages = forAllSystems (pkgs: let
-      cliphizt = pkgs.callPackage ./cliphizt/package.nix {};
-    in
+    overlays.default = final: prev:
       {
-        inherit cliphizt;
-        default = cliphizt;
+        cliphizt = final.callPackage ./cliphizt/package.nix {};
       }
       # cliplenz is a Wayland layer-shell GUI: Linux only.
+      // lib.optionalAttrs prev.stdenv.hostPlatform.isLinux {
+        cliplenz = final.callPackage ./cliplenz/package.nix {};
+      };
+
+    packages = forAllSystems (pkgs:
+      {
+        inherit (pkgs) cliphizt;
+        default = pkgs.cliphizt;
+      }
       // lib.optionalAttrs pkgs.stdenv.hostPlatform.isLinux {
-        cliplenz = pkgs.callPackage ./cliplenz/package.nix {};
+        inherit (pkgs) cliplenz;
       });
 
     homeManagerModules = {
@@ -41,7 +47,7 @@
       }
       // lib.optionalAttrs pkgs.stdenv.hostPlatform.isLinux {
         cliplenz = pkgs.mkShell {
-          inputsFrom = [self.packages.${pkgs.stdenv.hostPlatform.system}.cliplenz];
+          inputsFrom = [pkgs.cliplenz];
           packages = with pkgs; [rustfmt clippy rust-analyzer];
           RUST_SRC_PATH = "${pkgs.rustPlatform.rustLibSrc}";
         };
