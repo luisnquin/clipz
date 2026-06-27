@@ -1,4 +1,10 @@
-.zig-cache/
-zig-out/
 result
 result-*
+.direnv/
+
+# cliphizt (zig)
+cliphizt/.zig-cache/
+cliphizt/zig-out/
+
+# cliplenz (rust)
+cliplenz/target/
