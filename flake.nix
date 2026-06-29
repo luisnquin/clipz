@@ -35,7 +35,13 @@
 
     homeManagerModules = {
       cliphizt = import ./nix/hm-module.nix self;
-      default = self.homeManagerModules.cliphizt;
+      cliplenz = import ./nix/cliplenz-hm-module.nix self;
+      default = {
+        imports = [
+          self.homeManagerModules.cliphizt
+          self.homeManagerModules.cliplenz
+        ];
+      };
     };
 
     devShells = forAllSystems (pkgs:

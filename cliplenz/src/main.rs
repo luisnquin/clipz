@@ -33,6 +33,17 @@ fn main() -> Result<(), iced_layershell::Error> {
         (560, 480)
     };
 
+    // iced needs a `&'static str`; leaking the chosen family is fine for a
+    // one-shot process.
+    let default_font = match args
+        .font
+        .clone()
+        .or_else(|| std::env::var("CLIPLENZ_FONT").ok())
+    {
+        Some(name) if !name.is_empty() => iced::Font::with_name(Box::leak(name.into_boxed_str())),
+        _ => iced::Font::DEFAULT,
+    };
+
     let boot = move || State::boot(entries.clone(), args.clone());
 
     iced_layershell::application(boot, namespace, State::update, State::view)
@@ -42,7 +53,7 @@ fn main() -> Result<(), iced_layershell::Error> {
             text_color: theme::TEXT,
         })
         .settings(Settings {
-            default_font: iced::Font::with_name("Cascadia Code"),
+            default_font,
             default_text_size: iced::Pixels(13.0),
             layer_settings: LayerShellSettings {
                 // Empty anchor + fixed size = centered floating surface.
